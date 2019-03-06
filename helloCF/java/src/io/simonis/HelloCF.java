@@ -17,8 +17,11 @@ public class HelloCF {
     public void handle(HttpExchange exchange) throws IOException {
       InputStream is = exchange.getRequestBody();
       while (is.read(new byte[512]) != -1); // 'is' will be closed implicitly when we close 'os'
-      System.out.println(exchange.getRemoteAddress() + " -> " + exchange.getLocalAddress() + exchange.getRequestURI() +
-          " (" + exchange.getProtocol() + ")");
+      System.out.println(
+          exchange.getRemoteAddress() + " -> " + 
+          exchange.getLocalAddress() + 
+          exchange.getRequestURI() + " (" + 
+          exchange.getProtocol() + ")");
       StringBuffer response = new StringBuffer();
       response.append("Environment:\n");
       System.getenv().forEach((k, v) -> { response.append(k + " = " + v + "\n"); });
@@ -32,7 +35,8 @@ public class HelloCF {
   }
 
   public static void main(String[] args) throws IOException {
-    HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+    int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
+    HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
     server.createContext("/", new Handler());
     server.start();
   }

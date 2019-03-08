@@ -341,7 +341,7 @@ $ cf curl /v2/route_mappings
 }
 ```
 
-We gat a warning because the route already exists but if we call our service (the updated one which gets the port from the environment) once again and look at the output, we can see that our applcation is now listening on the local port `1234`:
+We get a warning because the route already exists but if we call our service (the updated one which gets the port from the environment) once again and look at the output, we can see that our application is now listening on the local port `1234`:
 
 ```
 PORT=1234
@@ -352,6 +352,31 @@ CF_INSTANCE_PORTS=[{"external":61180,"internal":1234,"external_tls_proxy":61182,
 
 #### Serving several routes on different ports
 
+#### Using a custom domain for our application
+
+If you have the possibility to control the DNS records of your own domain it is trivial to configure a custom subdomain for our `HelloCF` application. First we have to register our private domain within our CF organization:
+
+```console
+$ cf create-domain simonis simonis.io
+Creating domain simonis.io for org simonis as volker.simonis...
+OK
+```
+
+Once we've done that, we can create a new route from our custom subdomain (`hellocf.simonis.io` in this example) to our `HelloCF` application:
+
+```console
+$ cf map-route HelloCF simonis.io --hostname hellocf
+Creating route hellocf.simonis.io for org simonis / space development as volker.simonis...
+OK
+Adding route hellocf.simonis.io to app HelloCF in org simonis / space development as volker.simonis...
+OK
+```
+
+Before we can now call our application at `http://hellocf.simonis.io` we have to create a new [`CNAME`](https://en.wikipedia.org/wiki/CNAME_record) record in the DNS configuration of our domain which redirects the subdomain `hellocf` of `simonis.io` to `hellocf.cfapps.io`. How this can be done depends on your domain registrar but most of them offer a simple web interface for DNS administration nowadays.
+
+-------------
+
+TBD
 
 ```console
 $ cf curl /v2/apps/$(cf app HelloCF --guid) -X PUT -d '{"ports": [1234, 8080, 4567]}'

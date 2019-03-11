@@ -1,0 +1,8 @@
+---
+applications:
+- name: HelloCF
+  buildpacks:
+  - https://github.com/cloudfoundry/java-buildpack.git#v4.17.1
+  env:
+    JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 11.+ } }'
+    JBP_CONFIG_COMPONENTS: '{jres: ["JavaBuildpack::Jre::SapMachineJRE"]}'

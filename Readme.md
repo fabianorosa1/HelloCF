@@ -107,7 +107,7 @@ Pushing app HelloCF to org simonis / space development as ...
 Getting app info...
 Creating app with these attributes...
 + name:       HelloCF
-  path:       /share/Git/HelloCF/helloCF/HelloCF.jar
+  path:       ./helloCF/HelloCF.jar
   routes:
 +   hellocf.cfapps.io
 
@@ -193,7 +193,39 @@ If everything works as expected, you should be able to access your application b
 
 ![Accessing HelloCF from CF](./doc/helloCF_cf.png)
 
-In order for all this to work, there's a lot of magic happening under the hood and we'll explore and explain that in the next sections.
+### Buildpacks
+
+As you can see from the lengthy output of the `cf push` command, CF tries to guess what kind of artefact we've pushed and how this artefact can be executed. To do that, it downloads a whole bunch of so called [*buildpacks*](https://docs.pivotal.io/pivotalcf/2-4/buildpacks/) which all do some automatic probing in order to find out if they can execute our application. In the end the `java_buildpack` takes over and executes our sample application.
+
+You can easily list all the available buildpacks with the `buildpacks` command:
+
+```console
+$ cf buildpacks
+Getting buildpacks...
+
+buildpack                    position   enabled   locked   filename                                             stack
+staticfile_buildpack         1          true      false    staticfile_buildpack-cached-cflinuxfs3-v1.4.40.zip   cflinuxfs3
+java_buildpack               2          true      false    java-buildpack-offline-cflinuxfs3-v4.17.2.zip        cflinuxfs3
+ruby_buildpack               3          true      false    ruby_buildpack-cached-cflinuxfs3-v1.7.34.zip         cflinuxfs3
+dotnet_core_buildpack        4          true      false    dotnet-core_buildpack-cached-cflinuxfs3-v2.2.7.zip   cflinuxfs3
+nodejs_buildpack             5          true      false    nodejs_buildpack-cached-cflinuxfs3-v1.6.45.zip       cflinuxfs3
+go_buildpack                 6          true      false    go_buildpack-cached-cflinuxfs3-v1.8.35.zip           cflinuxfs3
+python_buildpack             7          true      false    python_buildpack-cached-cflinuxfs3-v1.6.29.zip       cflinuxfs3
+php_buildpack                8          true      false    php_buildpack-cached-cflinuxfs3-v4.3.71.zip          cflinuxfs3
+binary_buildpack             9          true      false    binary_buildpack-cached-cflinuxfs3-v1.0.31.zip       cflinuxfs3
+staticfile_buildpack         10         true      false    staticfile_buildpack-cached-cflinuxfs2-v1.4.40.zip   cflinuxfs2
+java_buildpack               11         true      false    java-buildpack-offline-cflinuxfs2-v4.17.2.zip        cflinuxfs2
+ruby_buildpack               12         true      false    ruby_buildpack-cached-cflinuxfs2-v1.7.34.zip         cflinuxfs2
+dotnet_core_buildpack        13         true      false    dotnet-core_buildpack-cached-cflinuxfs2-v2.2.7.zip   cflinuxfs2
+nodejs_buildpack             14         true      false    nodejs_buildpack-cached-cflinuxfs2-v1.6.45.zip       cflinuxfs2
+go_buildpack                 15         true      false    go_buildpack-cached-cflinuxfs2-v1.8.35.zip           cflinuxfs2
+python_buildpack             16         true      false    python_buildpack-cached-cflinuxfs2-v1.6.29.zip       cflinuxfs2
+php_buildpack                17         true      false    php_buildpack-cached-cflinuxfs2-v4.3.71.zip          cflinuxfs2
+binary_buildpack             18         true      false    binary_buildpack-cached-cflinuxfs2-v1.0.31.zip       cflinuxfs2
+dotnet_core_buildpack_beta   19         true      false    dotnet-core_buildpack-cached-v1.0.0.zip
+hwc_buildpack                20         true      false    hwc_buildpack-cached-windows2016-v3.1.6.zip          windows2016
+binary_buildpack             21         true      false    binary_buildpack-cached-windows2016-v1.0.31.zip      windows2016
+```
 
 ### Routes, Mappings and Ports
 
@@ -373,6 +405,209 @@ OK
 ```
 
 Before we can now call our application at `http://hellocf.simonis.io` we have to create a new [`CNAME`](https://en.wikipedia.org/wiki/CNAME_record) record in the DNS configuration of our domain which redirects the subdomain `hellocf` of `simonis.io` to `hellocf.cfapps.io`. How this can be done depends on your domain registrar but most of them offer a simple web interface for DNS administration nowadays.
+
+#### Selecting the Java version
+
+By default the [Java build pack](https://github.com/cloudfoundry/java-buildpack) currently uses Java 8 as default JDK/JRE. And the build pack can not detect which is the minimal Java version required by our application. So if we replace the following line in our application
+
+```java
+while (is.read(new byte[512]) != -1);
+```
+
+by the more convenient call to `InputStream::readAllBytes()`
+
+```java
+is.readAllBytes();
+```
+
+which was introduced in Java 9, repackage our application with Java 11 and simply redeploy it, we will see the following error:
+
+```console
+$ cf push HelloCF -p ./helloCF/HelloCF.jar
+Pushing app HelloCF to org simonis / space development as volker.simonis...
+...
+   -----> Java Buildpack v4.17.2 (offline) | https://github.com/cloudfoundry/java-buildpack.git#47e68da
+   -----> Downloading Jvmkill Agent 1.16.0_RELEASE from https://java-buildpack.cloudfoundry.org/jvmkill/bionic/x86_64/jvmkill-1.16.0_RELEASE.so (found in cache)
+   -----> Downloading Open Jdk JRE 1.8.0_202 from https://java-buildpack.cloudfoundry.org/openjdk/bionic/x86_64/openjdk-1.8.0_202.tar.gz (found in cache)
+...
+Waiting for app to start...
+Start unsuccessful
+
+TIP: use 'cf logs HelloCF --recent' for more information
+FAILED
+```
+
+As you can see from the logs, the CF Java build pack chooses *Open Jdk JRE 1.8.0_202* by default. When we use the suggested `logs` command to look at the output of our application, we can confirm that the reason for the application failure was indeed the wrong (i.e. too high) class file version which is not supported by Java 8:
+
+```console
+$ cf logs HelloCF --recent
+...
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR Error: A JNI error has occurred, please check your installation and try again
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR Exception in thread "main" java.lang.UnsupportedClassVersionError: io/simonis/HelloCF has been compiled by a more recent version of the Java Runtime (class file version 55.0), this version of the Java Runtime only recognizes class file versions up to 52.0
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.lang.ClassLoader.defineClass1(Native Method)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.security.SecureClassLoader.defineClass(SecureClassLoader.java:142)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.net.URLClassLoader.defineClass(URLClassLoader.java:468)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.net.URLClassLoader.access$100(URLClassLoader.java:74)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.net.URLClassLoader$1.run(URLClassLoader.java:369)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.net.URLClassLoader$1.run(URLClassLoader.java:363)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.security.AccessController.doPrivileged(Native Method)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.net.URLClassLoader.findClass(URLClassLoader.java:362)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.lang.ClassLoader.loadClass(ClassLoader.java:424)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:349)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at java.lang.ClassLoader.loadClass(ClassLoader.java:357)
+   2019-03-11T09:52:49.09+0100 [APP/PROC/WEB/0] ERR 	at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:495)
+   2019-03-11T09:52:49.11+0100 [APP/PROC/WEB/0] OUT Exit status 1
+   2019-03-11T09:52:49.12+0100 [CELL/SSHD/0] OUT Exit status 0
+...
+```
+
+In order to fix the problem, we have to configure the Java build pack such that it runs our application on Java 11. This can be achieved with the help of environment variables:
+
+```console
+$ cf set-env HelloCF JBP_CONFIG_OPEN_JDK_JRE '{ jre: { version: 11.+ } }'
+Setting env variable 'JBP_CONFIG_OPEN_JDK_JRE' to '{ jre: { version: 11.+ } }' for app HelloCF in org simonis / space development as volker.simonis...
+OK
+TIP: Use 'cf restage HelloCF' to ensure your env variable changes take effect
+$ cf restage HelloCF
+Restaging app HelloCF in org simonis / space development as volker.simonis...
+...
+   -----> Java Buildpack v4.17.2 (offline) | https://github.com/cloudfoundry/java-buildpack.git#47e68da
+   -----> Downloading Jvmkill Agent 1.16.0_RELEASE from https://java-buildpack.cloudfoundry.org/jvmkill/bionic/x86_64/jvmkill-1.16.0_RELEASE.so (found in cache)
+   -----> Downloading Open Jdk JRE 11.0.2_09 from https://java-buildpack.cloudfoundry.org/openjdk/bionic/x86_64/openjdk-11.0.2_09.tar.gz (found in cache)
+...
+Waiting for app to start...
+
+name:              HelloCF
+requested state:   started
+routes:            hellocf.cfapps.io, hellocf.simonis.io
+...
+     state     since                  cpu    memory    disk      details
+#0   running   2019-03-11T13:45:08Z   0.0%   0 of 1G   0 of 1G   
+```
+
+As you can read in the [documentation](https://github.com/cloudfoundry/java-buildpack#configuration-and-extension)
+of the Java build pack, the "*configuration can be overridden with an environment variable matching the configuration file you wish to override minus the .yml extension and with a prefix of JBP_CONFIG*". Looking at the Java build pack repository at https://github.com/cloudfoundry/java-buildpack you can see that the `config` subdirectory contains quite some Yaml configuration files. One of the is called `open_jdk_jre.yml` and contains the seetings for the default Java version:
+
+```Yaml
+jre:
+  version: 1.8.0_+
+```
+
+In general, the Java build pack creates abstractions for [containers](https://github.com/cloudfoundry/java-buildpack/blob/master/docs/design.md#container-components), [frameworks](https://github.com/cloudfoundry/java-buildpack/blob/master/docs/design.md#framework-components) and [JREs](https://github.com/cloudfoundry/java-buildpack/blob/master/docs/design.md#jre-components) and all of them can be easily [extended and configured](https://docs.pivotal.io/pivotalcf/2-4/buildpacks/java/java-tips.html).
+
+#### Using an alternative JRE
+
+The CF Java build pack allows not only the configuration of the Java version, but also the choice of an alternative JDK/JRE. The default JDK is configured in [`config/components.yml`](https://github.com/cloudfoundry/java-buildpack/blob/master/config/components.yml) as follows:
+
+```Yaml
+jres:
+ - "JavaBuildpack::Jre::OpenJdkJRE"
+```
+
+but the build pack already offers out of the box some other JDKs like for example [IBM SDK](https://github.com/cloudfoundry/java-buildpack/blob/master/docs/jre-ibm_jre.md), [Azul Zulu](https://github.com/cloudfoundry/java-buildpack/blob/master/docs/jre-zulu_jre.md) or [SapMachine](https://github.com/cloudfoundry/java-buildpack/blob/master/docs/jre-sap_machine_jre.md). To make SapMachine the default JRE we have three possibilities. We could either fork the default Java build pack and edit `config/components.yml` to point to `SapMachineJRE` by default. We could also use `cf set-env` to set `JBP_CONFIG_COMPONENTS` (i.e. the override for `config/components.yml`) to  `'{jres: ["JavaBuildpack::Jre::SapMachineJRE"]}'`.
+
+The third possibility is to set the corresponding environment variable in the so called [App Manifest](https://docs.cloudfoundry.org/devguide/deploy-apps/manifest.html) file. By default `cf push` always looks for a file called `manifest.yml` in the current directory, but this can be easily overridden with the `-f <Manifest-File>` option.
+
+A manifest for our application may look as follows:
+
+```Yaml
+---
+applications:
+- name: HelloCF
+  env:
+    JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 11.+ } }'
+    JBP_CONFIG_COMPONENTS: '{jres: ["JavaBuildpack::Jre::SapMachineJRE"]}'
+```
+
+With such a Manifest file, we can now push with:
+
+```console
+$ cf push -p ./helloCF/HelloCF.jar
+Pushing from manifest to org simonis / space development as volker.simonis...
+Using manifest file manifest.yml
+Getting app info...
+Creating app with these attributes...
++ name:       HelloCF
+  path:       ./helloCF/HelloCF.jar
+  env:
++   JBP_CONFIG_OPEN_JDK_JRE
+...
+```
+
+Notice how the application name and the environment variable for the Java version have been taken from the Manifest file (command line arguments can still override the Manifiest values). Now let's specify `SapMachine` as default JRE (and `java_buildpack` as default buildpack to free CF from the burden to download and probe all the available buildpaks each time we push):
+
+```Yaml
+---
+applications:
+- name: HelloCF
+  buildpacks:
+  - java_buildpack
+  env:
+    JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 11.+ } }'
+    JBP_CONFIG_COMPONENTS: '{jres: ["JavaBuildpack::Jre::SapMachineJRE"]}'
+```
+
+Unfortunately this won't work out of the box in Pivotal Web Services (PWS):
+
+```console
+$ cf push -p ./helloCF/HelloCF.jar
+Pushing from manifest to org simonis / space development as volker.simonis...
+Using manifest file ./manifest.yml
+Getting app info...
+Creating app with these attributes...
++ name:         HelloCF
+  path:         ./helloCF/HelloCF.jar
+  buildpacks:
++   java_buildpack
+  env:
++   JBP_CONFIG_COMPONENTS
++   JBP_CONFIG_OPEN_JDK_JRE
+...
+  -----> Java Buildpack v4.17.2 (offline) | https://github.com/cloudfoundry/java-buildpack.git#47e68da
+   [Buildpack]                      ERROR Finalize failed with exception #<RuntimeError: Sap Machine JRE error: Unable to find cached file for https://sap.github.io/SapMachine/assets/cf/jre/linux/x86_64/index.yml>
+   Sap Machine JRE error: Unable to find cached file for https://sap.github.io/SapMachine/assets/cf/jre/linux/x86_64/index.yml
+   Failed to compile droplet: Failed to run finalize script: exit status 1
+...
+```
+
+The problem is that PWS uses so called "[*offline*](https://www.cloudfoundry.org/blog/packaged-and-offline-buildpacks/)" (or "[*packaged*](https://www.cloudfoundry.org/blog/packaged-and-offline-buildpacks/)") buildpacks which contain a bunch of prepacked dependencies (see the [Pivotal Network](https://network.pivotal.io/products/java-buildpack) for a full list), but apparently not the alternative JDKs.
+
+However, the default community Java build pack has full support for alternative JDKs and we can easily leverage it by using the GitHub version of the buildpack instead of the offline version in PWS:
+
+```Yaml
+---
+applications:
+- name: HelloCF
+  buildpacks:
+  - https://github.com/cloudfoundry/java-buildpack.git#v4.17.1
+  env:
+    JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 11.+ } }'
+    JBP_CONFIG_COMPONENTS: '{jres: ["JavaBuildpack::Jre::SapMachineJRE"]}'
+```
+
+With this new configuration, everything works smoothly:
+
+```console
+$ cf push -p ./helloCF/HelloCF.jar
+Pushing from manifest to org simonis / space development as volker.simonis...
+Using manifest file manifest.yml
+Getting app info...
+Creating app with these attributes...
++ name:         HelloCF
+  path:         ./helloCF/HelloCF.jar
+  buildpacks:
++   https://github.com/cloudfoundry/java-buildpack.git#v4.17.1
+  env:
++   JBP_CONFIG_COMPONENTS
++   JBP_CONFIG_OPEN_JDK_JRE
+...
+   -----> Java Buildpack v4.17.1 | https://github.com/cloudfoundry/java-buildpack.git#ebd0c5a
+   -----> Downloading Sap Machine JRE 11.0.2_0.0.b0 from https://github.com/SAP/SapMachine/releases/download/sapmachine-11.0.2/sapmachine-jdk-11.0.2_linux-x64_bin.tar.gz (5.4s)
+...
+     state     since                  cpu    memory        disk       details
+#0   running   2019-03-11T19:05:54Z   0.0%   34.9K of 1G   8K of 1G   
+```
 
 -------------
 

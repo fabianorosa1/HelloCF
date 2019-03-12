@@ -284,7 +284,7 @@ nginx_buildpack             23         true      false    nginx-buildpack-cflinu
 r_buildpack                 24         true      false    r-buildpack-cflinuxfs3-v1.0.3.zip             cflinuxfs3
 ```
 
-We'll look more closely at the Java buildpack in the [Java buildpack configuration](java-buildpack-configuration) section.
+We'll look more closely at the Java buildpack in the [Java buildpack configuration](#java-buildpack-configuration) section.
 
 ### Routes, Mappings and Ports
 

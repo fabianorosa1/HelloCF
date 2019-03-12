@@ -673,6 +673,8 @@ Creating app with these attributes...
 ```
 
 SAP Cloud Platform does not use offline buildpacks for the community Java buildpack (but they do so for their proprietary `sap_java_buildpack`), so we can easily select SapMachine on SAP CP without specifying any buildpack at all.
+
+
 -------------
 
 TBD

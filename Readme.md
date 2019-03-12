@@ -45,6 +45,30 @@ For managing your CF services online visit https://console.run.pivotal.io/
 
 ### SAP Cloud Platform
 
+Go to https://cloudplatform.sap.com/try.html and register for a free trial. Once you've done that, you have to log out from the [SAP Cloud Platform Cockpit](https://account.hanatrial.ondemand.com/cockpit) and confirm your registration by following the link in the confirmation mail you should have received by know. Only know you will have the possibility of choosing the "Cloud Foundry Trial" from the SAP CP Cockpit. Notice that there's another SAP CP flavor available from the Cockpit called "Neo Trial". This is SAP's proprietary cloud version which is not compatible with Cloud Foundry and won't be covered here.
+
+If you follow the "Cloud Foundry Trial" you'll be taken to your CF subaccount where you can set up your trial account by choosing your favorite region. On the overview you'll finally find the API endpoint which may look like https://api.cf.us30.hana.ondemand.com (depending on the region you choose).
+
+You can now use this CP API endpoint to log into your SAP CF instance with the same CF CLI which we've already downloaded and used before:
+
+```console
+$ CF_HOME=~/.cf_sap cf login -a https://api.cf.us30.hana.ondemand.com
+API endpoint: https://api.cf.us30.hana.ondemand.com
+Email> ...
+Password> ...
+Authenticating...
+OK
+Targeted org P2001183469trial_trial
+Targeted space dev
+
+API endpoint:   https://api.cf.us30.hana.ondemand.com (API version: 2.128.0)
+User:           ...
+Org:            P2001183469trial_trial
+Space:          dev
+```
+
+Notice that we're using an alternative CF home location by setting the environment variable `CF_HOME=~/.cf_sap`. This is because the CF CLI stores and caches all the connection details and credentials in the users home directory under `.cf/`. So if you want to work on several API endpoints in parallel, you have to hold them apart by specifying `CF_HOME`.
+
 ## Create your first CF application
 
 We will now create our first, trivial CF application. In order to keep it simple and concentrate on CF we won't use any dependencies like Spring or Tomcat. It will be a simple Java server, based on the  [`com.sun.net.httpserver.HttpServer`](https://docs.oracle.com/javase/8/docs/jre/api/net/httpserver/spec/com/sun/net/httpserver/HttpServer.html) class that's part of OracleJDK/OpenJDK since Java 6, packed into a `.jar` file:
@@ -227,6 +251,41 @@ hwc_buildpack                20         true      false    hwc_buildpack-cached-
 binary_buildpack             21         true      false    binary_buildpack-cached-windows2016-v1.0.31.zip      windows2016
 ```
 
+The output on the SAP Cloud Platform CF instance looks slightly different because every CF vendor can choose which system buildpacks he will offer by default.
+
+```console
+$ CF_HOME=~/.cf_sap cf buildpacks
+Getting buildpacks...
+
+buildpack                   position   enabled   locked   filename                                      stack
+staticfile_buildpack        1          true      false    staticfile_buildpack-cflinuxfs2-v1.4.37.zip   cflinuxfs2
+java_buildpack              2          true      false    java-buildpack-cflinuxfs2-v4.17.1.zip         cflinuxfs2
+ruby_buildpack              3          true      false    ruby_buildpack-cflinuxfs2-v1.7.29.zip         cflinuxfs2
+nodejs_buildpack            4          true      false    nodejs_buildpack-cflinuxfs2-v1.6.40.zip       cflinuxfs2
+go_buildpack                5          true      false    go_buildpack-cflinuxfs2-v1.8.31.zip           cflinuxfs2
+python_buildpack            6          true      false    python_buildpack-cflinuxfs2-v1.6.27.zip       cflinuxfs2
+php_buildpack               7          true      false    php_buildpack-cflinuxfs2-v4.3.68.zip          cflinuxfs2
+binary_buildpack            8          true      false    binary_buildpack-cflinuxfs2-v1.0.28.zip       cflinuxfs2
+dotnet_core_buildpack       9          true      false    dotnet-core_buildpack-cflinuxfs2-v2.2.4.zip   cflinuxfs2
+staticfile_buildpack        10         true      false    staticfile_buildpack-cflinuxfs3-v1.4.37.zip   cflinuxfs3
+java_buildpack              11         true      false    java-buildpack-cflinuxfs3-v4.17.1.zip         cflinuxfs3
+ruby_buildpack              12         true      false    ruby_buildpack-cflinuxfs3-v1.7.29.zip         cflinuxfs3
+sap_java_buildpack_1_8_6    13         true      false    sap_java_buildpack-v1.8.6.zip
+sap_java_buildpack          14         true      false    sap_java_buildpack-v1.8.6.zip
+sap_java_buildpack_1_7_11   15         true      false    sap_java_buildpack-v1.7.11.zip
+sap_java_buildpack_1_8_0    16         true      false    sap_java_buildpack-v1.8.0.zip
+dotnet_core_buildpack       17         true      false    dotnet-core_buildpack-cflinuxfs3-v2.2.4.zip   cflinuxfs3
+nodejs_buildpack            18         true      false    nodejs_buildpack-cflinuxfs3-v1.6.40.zip       cflinuxfs3
+go_buildpack                19         true      false    go_buildpack-cflinuxfs3-v1.8.31.zip           cflinuxfs3
+python_buildpack            20         true      false    python_buildpack-cflinuxfs3-v1.6.27.zip       cflinuxfs3
+php_buildpack               21         true      false    php_buildpack-cflinuxfs3-v4.3.68.zip          cflinuxfs3
+binary_buildpack            22         true      false    binary_buildpack-cflinuxfs3-v1.0.28.zip       cflinuxfs3
+nginx_buildpack             23         true      false    nginx-buildpack-cflinuxfs3-v1.0.4.zip         cflinuxfs3
+r_buildpack                 24         true      false    r-buildpack-cflinuxfs3-v1.0.3.zip             cflinuxfs3
+```
+
+We'll look more closely at the Java buildpack in the [Java buildpack configuration](java-buildpack-configuration) section.
+
 ### Routes, Mappings and Ports
 
 You may be wondering why we can access `http://hellocf.cfapps.io` (i.e. port 80 of `hellocf.cfapps.io`) and connect to our webserver which is actually listinening on `localhost:8080`? This is because when we are pushing a new application with `cf push HelloCF -p HelloCF.jar` CF does the following steps for us by default:
@@ -382,7 +441,7 @@ CF_INSTANCE_PORT=61180
 CF_INSTANCE_PORTS=[{"external":61180,"internal":1234,"external_tls_proxy":61182,"internal_tls_proxy":61001},{"external":61181,"internal":2222,"external_tls_proxy":61183,"internal_tls_proxy":61002}]
 ```
 
-#### Serving several routes on different ports
+#### Serving several routes on different ports from a single application
 
 #### Using a custom domain for our application
 
@@ -405,6 +464,10 @@ OK
 ```
 
 Before we can now call our application at `http://hellocf.simonis.io` we have to create a new [`CNAME`](https://en.wikipedia.org/wiki/CNAME_record) record in the DNS configuration of our domain which redirects the subdomain `hellocf` of `simonis.io` to `hellocf.cfapps.io`. How this can be done depends on your domain registrar but most of them offer a simple web interface for DNS administration nowadays.
+
+### Java buildpack configuration
+
+Until now we've used the Java buildpack 'as-is'. But the buildpack actually offers a lot of extension points and configuration options some of which we'll explore in the following sections.
 
 #### Selecting the Java version
 
@@ -571,7 +634,7 @@ Creating app with these attributes...
 ...
 ```
 
-The problem is that PWS uses so called "[*offline*](https://www.cloudfoundry.org/blog/packaged-and-offline-buildpacks/)" (or "[*packaged*](https://www.cloudfoundry.org/blog/packaged-and-offline-buildpacks/)") buildpacks which contain a bunch of prepacked dependencies (see the [Pivotal Network](https://network.pivotal.io/products/java-buildpack) for a full list), but apparently not the alternative JDKs.
+The problem is that PWS uses so called "[*offline*](https://www.cloudfoundry.org/blog/packaged-and-offline-buildpacks/)" (or "[*packaged*](https://www.cloudfoundry.org/blog/packaged-and-offline-buildpacks/)") buildpacks which contain a bunch of prepackaged dependencies (see the [Pivotal Network](https://network.pivotal.io/products/java-buildpack) for a full list), but apparently not the alternative JDKs.
 
 However, the default community Java build pack has full support for alternative JDKs and we can easily leverage it by using the GitHub version of the buildpack instead of the offline version in PWS:
 
@@ -609,6 +672,7 @@ Creating app with these attributes...
 #0   running   2019-03-11T19:05:54Z   0.0%   34.9K of 1G   8K of 1G   
 ```
 
+SAP Cloud Platform does not use offline buildpacks for the community Java buildpack (but they do so for their proprietary `sap_java_buildpack`), so we can easily select SapMachine on SAP CP without specifying any buildpack at all.
 -------------
 
 TBD
